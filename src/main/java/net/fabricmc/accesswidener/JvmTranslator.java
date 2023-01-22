@@ -10,6 +10,20 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Translates normal Java-language types and type declarations into internal JVM descriptors. For
+ * example, "int foo" becomes two elements: the field name "foo" and the type "I", and "String
+ * bar(int[] i)" becomes two elements: the method name "bar" and the type "(Ljava.lang.String;)[I".
+ *
+ * The only exception to the "normal Java language" claim is that nested and inner classes must
+ * still be distinguished with "$" instead of ".'. So a class Bar inside a class Foo is "Foo$Bar"
+ * instead of "Foo.Bar".
+ *
+ * Generics are accepted but ignored, as long as the &lt;&gt;s are balanced.
+ *
+ * All the methods throw {@link JvmTranslatorException} if there is a parsing error, such as an
+ * unknown class or imbalanced parentheses, and so on.
+ */
 public class JvmTranslator {
 
 	private static final String IDENTIFIER_CORE = "\\w[\\w\\d.$]*";
@@ -40,35 +54,43 @@ public class JvmTranslator {
 
 	private final Collection<String> imported;
 
+	/**
+	 * Creates a new translator with the default imports of {@code java.lang}.
+	 */
 	public JvmTranslator() {
 		this(Collections.singletonList("java.lang"));
 	}
 
+	/**
+	 * Creates a new translator with the specified imports.
+	 */
 	public JvmTranslator(String... imported) {
 		this(Arrays.asList(imported));
 	}
 
+	/**
+	 * Creates a new translator with the specified imports.
+	 */
 	public JvmTranslator(Collection<String> imported) {
 		this.imported = imported;
 	}
 
+	/**
+	 * Returns the JVM descriptor for the given type.
+	 */
 	public String toDescriptor(String type) throws JvmTranslatorException {
 		StringBuilder sb = new StringBuilder();
 		append(sb, stripGenerics(type));
 		return sb.toString();
 	}
 
+	/**
+	 * Returns the field descriptor for the given string.
+	 *
+	 * @return A list with the first element being the field name and the second the JVM descriptor.
+	 */
 	public List<String> toFieldDescriptor(String decl) throws JvmTranslatorException {
-		return toFieldDescriptor(Collections.singletonList(decl));
-	}
-
-	public List<String> toFieldDescriptor(List<String> tokens) throws JvmTranslatorException {
-		return toFieldDescriptor(tokens, 0);
-	}
-
-	public List<String> toFieldDescriptor(List<String> tokens, int start)
-					throws JvmTranslatorException {
-		String decl = stripGenerics(String.join(" ", tokens.subList(start, tokens.size())));
+		decl = stripGenerics(decl);
 		StringBuilder desc = new StringBuilder();
 		String name = append(desc, decl);
 		List<String> retval = new ArrayList<>();
@@ -77,28 +99,15 @@ public class JvmTranslator {
 		return retval;
 	}
 
-	public List<String> toMethodDescriptor(String decl) throws JvmTranslatorException {
-		return toMethodDescriptor(Collections.singletonList(decl));
-	}
-
-	public List<String> toMethodDescriptor(List<String> tokens) throws JvmTranslatorException {
-		return toMethodDescriptor(tokens, 0);
-	}
-
 	/**
-	 * This is either two tokens -- method name and internal VM descriptor -- or the method definition
-	 * in normal Java form (without attributes). If it's the latter, we want to convert it to the
-	 * former.
+	 * Returns the method descriptor for the given string.
+	 *
+	 * @return A list with the first element being the method name and the second the JVM descriptor.
 	 */
-	public List<String> toMethodDescriptor(List<String> tokens, int start)
-					throws JvmTranslatorException {
-		List<String> descList = tokens.subList(start, tokens.size());
-		if (descList.size() == 2 && descList.get(1).charAt(0) == '(') {
-			return descList;
-		}
+	public List<String> toMethodDescriptor(String decl) throws JvmTranslatorException {
 		List<String> returnList = new ArrayList<>(2);
 
-		String sig = stripGenerics(String.join(" ", descList));
+		String sig = stripGenerics(decl);
 		Matcher m = METHOD_SPLIT.matcher(sig);
 		if (!m.matches()) {
 			throw new JvmTranslatorException("Invalid method descriptor: %s", sig);
@@ -190,5 +199,4 @@ public class JvmTranslator {
 	private String emptyIfNull(String group) {
 		return group == null ? "" : group;
 	}
-
 }

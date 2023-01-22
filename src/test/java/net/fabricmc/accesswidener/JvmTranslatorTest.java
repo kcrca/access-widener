@@ -76,7 +76,7 @@ class JvmTranslatorTest {
 	@ParameterizedTest
 	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double"})
 	void primitiveField(String type) throws JvmTranslatorException {
-		List<String> result = new JvmTranslator().toFieldDescriptor(List.of(type, "foo"));
+		List<String> result = new JvmTranslator().toFieldDescriptor(type + " foo");
 		assertThat(result).hasSameElementsAs(List.of("foo", PRIM_TYPES.get(type)));
 	}
 
@@ -113,8 +113,7 @@ class JvmTranslatorTest {
 	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double",
 					"void"})
 	void returnsTypeWhenSplitUp(String returnType) throws JvmTranslatorException {
-		List<String> result = new JvmTranslator().toMethodDescriptor(
-						List.of(returnType, "foo", "(", ")"));
+		List<String> result = new JvmTranslator().toMethodDescriptor(returnType + " foo()");
 		assertThat(result).hasSameElementsAs(List.of("foo", "()" + PRIM_TYPES.get(returnType)));
 	}
 
