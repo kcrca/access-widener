@@ -12,7 +12,6 @@ import java.util.regex.Pattern;
 
 public class JvmTranslator {
 
-	private static final Pattern STRIP_GENERICS = Pattern.compile("<[^<]*>");
 	private static final String IDENTIFIER_CORE = "\\w[\\w\\d.$]*";
 	private static final String IDENTIFIER = "(" + IDENTIFIER_CORE + ")";
 	private static final String ARRAY_SPEC = "[\\[\\]\\s]*";
@@ -55,12 +54,31 @@ public class JvmTranslator {
 
 	public String toDescriptor(String type) throws JvmTranslatorException {
 		StringBuilder sb = new StringBuilder();
-		append(sb, type);
+		append(sb, stripGenerics(type));
 		return sb.toString();
 	}
 
-	public List<String> toMethodDescriptor(String string) throws JvmTranslatorException {
-		return toMethodDescriptor(Collections.singletonList(string));
+	public List<String> toFieldDescriptor(String decl) throws JvmTranslatorException {
+		return toFieldDescriptor(Collections.singletonList(decl));
+	}
+
+	public List<String> toFieldDescriptor(List<String> tokens) throws JvmTranslatorException {
+		return toFieldDescriptor(tokens, 0);
+	}
+
+	public List<String> toFieldDescriptor(List<String> tokens, int start)
+					throws JvmTranslatorException {
+		String decl = stripGenerics(String.join(" ", tokens.subList(start, tokens.size())));
+		StringBuilder desc = new StringBuilder();
+		String name = append(desc, decl);
+		List<String> retval = new ArrayList<>();
+		retval.add(name);
+		retval.add(desc.toString());
+		return retval;
+	}
+
+	public List<String> toMethodDescriptor(String decl) throws JvmTranslatorException {
+		return toMethodDescriptor(Collections.singletonList(decl));
 	}
 
 	public List<String> toMethodDescriptor(List<String> tokens) throws JvmTranslatorException {
@@ -80,8 +98,7 @@ public class JvmTranslator {
 		}
 		List<String> returnList = new ArrayList<>(2);
 
-		String s = String.join(" ", descList);
-		String sig = STRIP_GENERICS.matcher(s).replaceAll("");
+		String sig = stripGenerics(String.join(" ", descList));
 		Matcher m = METHOD_SPLIT.matcher(sig);
 		if (!m.matches()) {
 			throw new JvmTranslatorException("Invalid method descriptor: %s", sig);
@@ -105,7 +122,28 @@ public class JvmTranslator {
 		return returnList;
 	}
 
-	private void append(StringBuilder desc, String decl) throws JvmTranslatorException {
+	private String stripGenerics(String s) throws JvmTranslatorException {
+		if (s.indexOf('<') < 0) {
+			return s;
+		}
+		StringBuilder stripped = new StringBuilder(s.length());
+		int nesting = 0;
+		for (char c : s.toCharArray()) {
+			if (c == '<') {
+				nesting++;
+			} else if (c == '>') {
+				nesting--;
+			} else if (nesting == 0) {
+				stripped.append(c);
+			}
+		}
+		if (nesting != 0) {
+			throw new JvmTranslatorException("Mismatched <>s: " + s);
+		}
+		return stripped.toString();
+	}
+
+	private String append(StringBuilder desc, String decl) throws JvmTranslatorException {
 		Matcher m = TYPE_DECL.matcher(decl);
 		if (!m.matches()) {
 			throw new JvmTranslatorException("Invalid identifier declaration: %s", decl);
@@ -115,23 +153,28 @@ public class JvmTranslator {
 			desc.append('[');
 		}
 		String baseType = m.group(1);
+		String name = m.group(3);
 		String primType = KNOWN_TYPES.get(baseType);
 		if (primType != null) {
 			desc.append(primType);
 		} else {
-			if (findClass(desc, baseType)) {
-				return;
-			}
-			for (String pkg : imported) {
-				if (!pkg.endsWith(".")) {
-					pkg += ".";
+			boolean found = false;
+			if (!findClass(desc, baseType)) {
+				for (String pkg : imported) {
+					if (!pkg.endsWith(".")) {
+						pkg += ".";
+					}
+					if (findClass(desc, pkg + baseType)) {
+						found = true;
+						break;
+					}
 				}
-				if (findClass(desc, pkg + baseType)) {
-					return;
+				if (!found) {
+					throw new JvmTranslatorException("Unknown type: " + baseType);
 				}
 			}
-			throw new JvmTranslatorException("Unknown type: " + baseType);
 		}
+		return name;
 	}
 
 	private boolean findClass(StringBuilder desc, String baseType) {
@@ -147,4 +190,5 @@ public class JvmTranslator {
 	private String emptyIfNull(String group) {
 		return group == null ? "" : group;
 	}
+
 }

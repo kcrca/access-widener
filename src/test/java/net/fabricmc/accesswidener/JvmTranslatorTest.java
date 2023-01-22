@@ -39,25 +39,73 @@ class JvmTranslatorTest {
 
 	}
 
-	// @ParameterizedTest
-	// @ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double"
-	// 				})
-	// void primitiveTypeDefined(String prim) {
-	// 	assertThat()
-	// }
+	@ParameterizedTest
+	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double"})
+	void primitiveTypeDefined(String prim) throws JvmTranslatorException {
+		String result = new JvmTranslator().toDescriptor(prim);
+		assertThat(result).isEqualTo(PRIM_TYPES.get(prim));
+	}
+
+	@Test
+	void importedTypeDefined() throws JvmTranslatorException {
+		String result = new JvmTranslator().toDescriptor("String");
+		assertThat(result).isEqualTo("Ljava.lang.String;");
+	}
+
+	@Test
+	void unimportedTypeDefined() throws JvmTranslatorException {
+		String result = new JvmTranslator().toDescriptor("java.util.Map");
+		assertThat(result).isEqualTo("Ljava.util.Map;");
+	}
+
+	@Test
+	void mismatchedGenericsThrows() {
+		assertThatThrownBy(() -> new JvmTranslator().toDescriptor("Map<String")).isInstanceOf(
+						JvmTranslatorException.class);
+		assertThatThrownBy(() -> new JvmTranslator().toDescriptor("Map<String>>")).isInstanceOf(
+						JvmTranslatorException.class);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"<>", "<String>", "<Map<String, List<Set<Long>>>>"})
+	void genericsIgnored(String generic) throws JvmTranslatorException {
+		String result = new JvmTranslator().toDescriptor("Class" + generic);
+		assertThat(result).isEqualTo("Ljava.lang.Class;");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double"})
+	void primitiveField(String type) throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toFieldDescriptor(List.of(type, "foo"));
+		assertThat(result).hasSameElementsAs(List.of("foo", PRIM_TYPES.get(type)));
+	}
+
+	@Test
+	void objectField() throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toFieldDescriptor("Object foo");
+		assertThat(result).hasSameElementsAs(List.of("foo", "Ljava.lang.Object;"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"<>", "<String>", "<Map<String, List<Set<Long>>>>"})
+	void genericsIgnoredForField(String generic) throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toFieldDescriptor("Class" + generic + " foo");
+		assertThat(result).hasSameElementsAs(List.of("foo", "Ljava.lang.Class;"));
+	}
+
 
 	@Test
 	void trailingSemicolonIgnored() throws JvmTranslatorException {
-		assertThat(new JvmTranslator().toMethodDescriptor("boolean foo();")).hasSameElementsAs(
-						List.of("foo", "()Z"));
+		List<String> result = new JvmTranslator().toMethodDescriptor("boolean foo();");
+		assertThat(result).hasSameElementsAs(List.of("foo", "()Z"));
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double",
 					"void"})
-	void returnsType(String returnType) throws JvmTranslatorException {
-		assertThat(new JvmTranslator().toMethodDescriptor(returnType + " foo()")).hasSameElementsAs(
-						List.of("foo", "()" + PRIM_TYPES.get(returnType)));
+	void methodReturnsType(String returnType) throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toMethodDescriptor(returnType + " foo()");
+		assertThat(result).hasSameElementsAs(List.of("foo", "()" + PRIM_TYPES.get(returnType)));
 	}
 
 
@@ -65,53 +113,60 @@ class JvmTranslatorTest {
 	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double",
 					"void"})
 	void returnsTypeWhenSplitUp(String returnType) throws JvmTranslatorException {
-		assertThat(new JvmTranslator().toMethodDescriptor(
-						List.of(returnType, "foo", "(", ")"))).hasSameElementsAs(
-						List.of("foo", "()" + PRIM_TYPES.get(returnType)));
+		List<String> result = new JvmTranslator().toMethodDescriptor(
+						List.of(returnType, "foo", "(", ")"));
+		assertThat(result).hasSameElementsAs(List.of("foo", "()" + PRIM_TYPES.get(returnType)));
 	}
 
 	@Test
 	void primitiveParameters() throws JvmTranslatorException {
-		assertThat(new JvmTranslator().toMethodDescriptor(
-						"void foo(boolean, char, byte, short, int, long, float, double)")).hasSameElementsAs(
-						List.of("foo", "(ZCBSIJFD)V"));
+		List<String> result = new JvmTranslator().toMethodDescriptor(
+						"void foo(boolean, char, byte, short, int, long, float, double)");
+		assertThat(result).hasSameElementsAs(List.of("foo", "(ZCBSIJFD)V"));
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"char   [] [ ] blah", "char [  ] blah [ ]", "char blah[ ] [ ]"})
 	void primitiveArrays(String params) throws JvmTranslatorException {
-		assertThat(
-						new JvmTranslator().toMethodDescriptor("int[] foo(" + params + ")")).hasSameElementsAs(
-						List.of("foo", "([[C)[I"));
+		List<String> result = new JvmTranslator().toMethodDescriptor("int[] foo(" + params + ")");
+		assertThat(result).hasSameElementsAs(List.of("foo", "([[C)[I"));
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"java.util.List   [] [ ] blah", "java.util.List [  ] blah [ ]",
 					"java.util.List blah[ ] [ ]"})
 	void objArrays(String params) throws JvmTranslatorException {
-		assertThat(
-						new JvmTranslator().toMethodDescriptor("int[] foo(" + params + ")")).hasSameElementsAs(
-						List.of("foo", "([[Ljava.util.List;)[I"));
+		List<String> result = new JvmTranslator().toMethodDescriptor("int[] foo(" + params + ")");
+		assertThat(result).hasSameElementsAs(List.of("foo", "([[Ljava.util.List;)[I"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"<>", "<String>", "<Map<String, List<Set<Long>>>"})
+	void genericArrays(String generic) throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toMethodDescriptor("Class[] foo(Class[] bar[])");
+		assertThat(result).hasSameElementsAs(List.of("foo", "([[Ljava.lang.Class;)[Ljava.lang.Class;"));
 	}
 
 	@Test
 	void importedByDefault() throws JvmTranslatorException {
-		assertThat(new JvmTranslator().toMethodDescriptor("String foo(Object foo)")).hasSameElementsAs(
-						List.of("foo", "(Ljava.lang.Object;)Ljava.lang.String;"));
+		List<String> result = new JvmTranslator().toMethodDescriptor("String foo(Object foo)");
+		assertThat(result).hasSameElementsAs(List.of("foo", "(Ljava.lang.Object;)Ljava.lang.String;"));
 	}
 
 	@Test
 	void importedExplicitly() throws JvmTranslatorException {
-		assertThat(new JvmTranslator("java.lang", "java.util").toMethodDescriptor(
-						"Set foo(Object foo)")).hasSameElementsAs(
-						List.of("foo", "(Ljava.lang.Object;)Ljava.util.Set;"));
+		List<String> result = new JvmTranslator("java.lang", "java.util").toMethodDescriptor(
+						"Set foo(Object foo)");
+		assertThat(result).hasSameElementsAs(List.of("foo", "(Ljava.lang.Object;)Ljava.util.Set;"));
 	}
 
 	@Test
 	void notJustAscii() throws JvmTranslatorException {
-		assertThat(new JvmTranslator(List.of("net.fabricmc.accesswidener")).toMethodDescriptor(
-						"JvmTranslatorTest$Élevée நண்பர்(JvmTranslatorTest$健)")).hasSameElementsAs(
-						List.of("நண்பர்", "(Lnet.fabricmc.accesswidener.JvmTranslatorTest$健;)"
+		List<String> result = new JvmTranslator(
+						List.of("net.fabricmc.accesswidener")).toMethodDescriptor(
+						"JvmTranslatorTest$Élevée நண்பர்(JvmTranslatorTest$健)");
+		assertThat(result).hasSameElementsAs(List.of("நண்பர்",
+						"(Lnet.fabricmc.accesswidener.JvmTranslatorTest$健;)"
 										+ "Lnet.fabricmc.accesswidener.JvmTranslatorTest$Élevée;"));
 	}
 
