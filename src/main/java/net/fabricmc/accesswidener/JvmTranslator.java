@@ -1,6 +1,7 @@
 package net.fabricmc.accesswidener;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -38,22 +39,32 @@ public class JvmTranslator {
 		KNOWN_TYPES.put("void", "V");
 	}
 
-	public static List<String> toMethodDescriptor(String string) throws JvmTranslatorException {
+	private final Collection<String> imported;
+
+	public JvmTranslator() {
+		this(Collections.singletonList("java.lang"));
+	}
+
+	public JvmTranslator(String... imported) {
+		this(Arrays.asList(imported));
+	}
+
+	public JvmTranslator(Collection<String> imported) {
+		this.imported = imported;
+	}
+
+	public String toDescriptor(String type) throws JvmTranslatorException {
+		StringBuilder sb = new StringBuilder();
+		append(sb, type);
+		return sb.toString();
+	}
+
+	public List<String> toMethodDescriptor(String string) throws JvmTranslatorException {
 		return toMethodDescriptor(Collections.singletonList(string));
 	}
 
-	public static List<String> toMethodDescriptor(String string, Collection<String> imported)
-					throws JvmTranslatorException {
-		return toMethodDescriptor(Collections.singletonList(string), imported);
-	}
-
-	public static List<String> toMethodDescriptor(List<String> tokens) throws JvmTranslatorException {
+	public List<String> toMethodDescriptor(List<String> tokens) throws JvmTranslatorException {
 		return toMethodDescriptor(tokens, 0);
-	}
-
-	public static List<String> toMethodDescriptor(List<String> tokens, Collection<String> imported)
-					throws JvmTranslatorException {
-		return toMethodDescriptor(tokens, 0, imported);
 	}
 
 	/**
@@ -61,15 +72,8 @@ public class JvmTranslator {
 	 * in normal Java form (without attributes). If it's the latter, we want to convert it to the
 	 * former.
 	 */
-	public static List<String> toMethodDescriptor(List<String> tokens, int start)
+	public List<String> toMethodDescriptor(List<String> tokens, int start)
 					throws JvmTranslatorException {
-		List<String> importedPackages = Collections.singletonList("java.lang");
-		return toMethodDescriptor(tokens, start, importedPackages);
-	}
-
-	public static List<String> toMethodDescriptor(
-					List<String> tokens, int start, Collection<String> importedPackages
-	) throws JvmTranslatorException {
 		List<String> descList = tokens.subList(start, tokens.size());
 		if (descList.size() == 2 && descList.get(1).charAt(0) == '(') {
 			return descList;
@@ -90,20 +94,18 @@ public class JvmTranslator {
 		desc.append('(');
 		for (String p : PARAM_SPLIT.split(parameterTypes)) {
 			if (!p.isEmpty()) {
-				append(desc, p, importedPackages);
+				append(desc, p);
 			}
 		}
 		desc.append(')');
-		append(desc, returnType, importedPackages);
+		append(desc, returnType);
 
 		returnList.add(methodName);
 		returnList.add(desc.toString());
 		return returnList;
 	}
 
-	private static void append(
-					StringBuilder desc, String decl, Collection<String> importedPackages
-	) throws JvmTranslatorException {
+	private void append(StringBuilder desc, String decl) throws JvmTranslatorException {
 		Matcher m = TYPE_DECL.matcher(decl);
 		if (!m.matches()) {
 			throw new JvmTranslatorException("Invalid identifier declaration: %s", decl);
@@ -117,11 +119,10 @@ public class JvmTranslator {
 		if (primType != null) {
 			desc.append(primType);
 		} else {
-			String name = null;
 			if (findClass(desc, baseType)) {
 				return;
 			}
-			for (String pkg : importedPackages) {
+			for (String pkg : imported) {
 				if (!pkg.endsWith(".")) {
 					pkg += ".";
 				}
@@ -133,7 +134,7 @@ public class JvmTranslator {
 		}
 	}
 
-	private static boolean findClass(StringBuilder desc, String baseType) {
+	private boolean findClass(StringBuilder desc, String baseType) {
 		try {
 			String name = Class.forName(baseType).getName();
 			desc.append('L').append(name).append(';');
@@ -143,9 +144,7 @@ public class JvmTranslator {
 		}
 	}
 
-
-	private static String emptyIfNull(String group) {
+	private String emptyIfNull(String group) {
 		return group == null ? "" : group;
 	}
-
 }
