@@ -189,7 +189,7 @@ public class JvmTranslator {
 	private boolean findClass(StringBuilder desc, String baseType) {
 		try {
 			String name = Class.forName(baseType).getName();
-			desc.append('L').append(name).append(';');
+			desc.append('L').append(name.replace('.', '/')).append(';');
 			return true;
 		} catch (ClassNotFoundException e) {
 			return false;

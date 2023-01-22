@@ -299,8 +299,8 @@ public class AccessWidenerReaderTest {
 		@Test
 		void testThrowsOnExtraTokensInLine() {
 			assertFormatError(
-					"Expected (<access> method <className> <methodName> <methodDesc>) got (accessible method Method method ()V extra)",
-					() -> parseLines("accessible method Method method ()V extra")
+							"Unparseable method description: length ()I extra",
+							() -> parseLines("accessible method java.lang.String length ()I extra")
 			);
 		}
 
@@ -418,53 +418,26 @@ public class AccessWidenerReaderTest {
 		// This is a quirk in access-widener v1
 		@Test
 		public void testLeadingWhitespaceWithLineComment() throws IOException {
-			parseLines("   accessible class SomeClass #linecomment");
-			assertThat(visitor.classes).containsOnly("SomeClass");
+			parseLines("   accessible class java.lang.String #linecomment");
+			assertThat(visitor.classes).containsOnly("Ljava.lang.String;");
 		}
 
 		@Test
 		public void testTrailingWhitespace() throws IOException {
-			parseLines("accessible class SomeClass    ");
-			assertThat(visitor.classes).containsOnly("SomeClass");
+			parseLines("accessible class java.lang.String    ");
+			assertThat(visitor.classes).containsOnly("Ljava.lang.String;");
 		}
 
 		@Test
 		public void testCanParseWithTabSeparators() throws IOException {
-			parseLines("accessible\tclass\tSomeName");
-			assertThat(visitor.classes).containsOnly("SomeName");
+			parseLines("accessible\tclass\tjava.lang.String");
+			assertThat(visitor.classes).containsOnly("Ljava.lang.String;");
 		}
 
 		@Test
 		public void testCanParseWithMultipleSeparators() throws IOException {
-			parseLines("accessible \tclass\t\t SomeName");
-			assertThat(visitor.classes).containsOnly("SomeName");
-		}
-	}
-
-	@Nested
-	class ClassNameValidation {
-		@Test
-		void testClassName() {
-			assertFormatError(
-					"Class-names must be specified as a/b/C, not a.b.C, but found: some.Class",
-					() -> parseLines("accessible class some.Class")
-			);
-		}
-
-		@Test
-		void testClassNameInMethodWidener() {
-			assertFormatError(
-					"Class-names must be specified as a/b/C, not a.b.C, but found: some.Class",
-					() -> parseLines("accessible method some.Class method ()V")
-			);
-		}
-
-		@Test
-		void testClassNameInFieldWidener() {
-			assertFormatError(
-					"Class-names must be specified as a/b/C, not a.b.C, but found: some.Class",
-					() -> parseLines("accessible field some.Class field I")
-			);
+			parseLines("accessible \tclass\t\t java.lang.String");
+			assertThat(visitor.classes).containsOnly("Ljava.lang.String;");
 		}
 	}
 

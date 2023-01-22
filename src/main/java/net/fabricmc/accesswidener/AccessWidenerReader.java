@@ -27,6 +27,7 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 public final class AccessWidenerReader {
+
 	public static final Charset ENCODING = StandardCharsets.UTF_8;
 
 	// Also includes some weirdness such as vertical tabs
@@ -41,6 +42,8 @@ public final class AccessWidenerReader {
 	private static final int V2 = 2;
 
 	private final AccessWidenerVisitor visitor;
+
+	private final JvmTranslator jvmTranslator = new JvmTranslator();
 
 	private int lineNumber;
 
@@ -156,8 +159,8 @@ public final class AccessWidenerReader {
 
 		if (header.length != 3 || !header[0].equals("accessWidener")) {
 			throw new AccessWidenerFormatException(
-					1,
-					"Invalid access widener file header. Expected: 'accessWidener <version> <namespace>'"
+							1,
+							"Invalid access widener file header. Expected: 'accessWidener <version> <namespace>'"
 			);
 		}
 
@@ -171,8 +174,8 @@ public final class AccessWidenerReader {
 			break;
 		default:
 			throw new AccessWidenerFormatException(
-					1,
-					"Unsupported access widener format: " + header[1]
+							1,
+							"Unsupported access widener format: " + header[1]
 			);
 		}
 
@@ -184,8 +187,7 @@ public final class AccessWidenerReader {
 			throw error("Expected (<access> class <className>) got (%s)", line);
 		}
 
-		String name = tokens.get(2);
-		validateClassName(name);
+		String name = toClassDesc(tokens.get(2));
 
 		try {
 			visitor.visitClass(name, access, transitive);
@@ -194,16 +196,28 @@ public final class AccessWidenerReader {
 		}
 	}
 
-	private void handleField(String line, List<String> tokens, boolean transitive, AccessType access) {
+	private String toClassDesc(String s) {
+		if (s.indexOf('/') >= 0) {
+			return s;
+		}
+		try {
+			return jvmTranslator.toDescriptor(s);
+		} catch (JvmTranslatorException e) {
+			throw error(e);
+		}
+	}
+
+	private void handleField(
+					String line, List<String> tokens, boolean transitive, AccessType access
+	) {
 		if (tokens.size() != 5) {
 			throw error("Expected (<access> field <className> <fieldName> <fieldDesc>) got (%s)", line);
 		}
 
-		String owner = tokens.get(2);
-		String fieldName = tokens.get(3);
-		String descriptor = tokens.get(4);
-
-		validateClassName(owner);
+		String owner = toClassDesc(tokens.get(2));
+		List<String> desc = toFieldDesc(tokens.subList(3, tokens.size()));
+		String fieldName = desc.get(0);
+		String descriptor = desc.get(1);
 
 		try {
 			visitor.visitField(owner, fieldName, descriptor, access, transitive);
@@ -212,21 +226,42 @@ public final class AccessWidenerReader {
 		}
 	}
 
-	private void handleMethod(String line, List<String> tokens, boolean transitive, AccessType access) {
-		if (tokens.size() != 5) {
-			throw error("Expected (<access> method <className> <methodName> <methodDesc>) got (%s)", line);
+	private List<String> toFieldDesc(List<String> tokens) {
+		try {
+			return jvmTranslator.toFieldDescriptor(String.join(" ", tokens));
+		} catch (JvmTranslatorException e) {
+			return tokens;
+		}
+	}
+
+	private void handleMethod(
+					String line, List<String> tokens, boolean transitive, AccessType access
+	) {
+		if (tokens.size() < 5) {
+			throw error("Expected (<access> method <className> <methodName> <methodDesc>) got (%s)",
+							line);
 		}
 
-		String owner = tokens.get(2);
-		String methodName = tokens.get(3);
-		String descriptor = tokens.get(4);
-
-		validateClassName(owner);
+		String owner = toClassDesc(tokens.get(2));
+		List<String> desc = toMethodDesc(tokens.subList(3, tokens.size()));
+		String methodName = desc.get(0);
+		String descriptor = desc.get(1);
 
 		try {
 			visitor.visitMethod(owner, methodName, descriptor, access, transitive);
 		} catch (Exception e) {
 			throw error(e.toString());
+		}
+	}
+
+	private List<String> toMethodDesc(List<String> tokens) {
+		try {
+			return jvmTranslator.toMethodDescriptor(String.join(" ", tokens));
+		} catch (JvmTranslatorException e) {
+			if (tokens.size() == 2) {
+				return tokens;
+			}
+			throw error("Unparseable method description: " + String.join(" ", tokens));
 		}
 	}
 
@@ -287,13 +322,6 @@ public final class AccessWidenerReader {
 		// If this class ever starts reading lines incrementally however, it'd need to be changed.
 		String message = String.format(Locale.ROOT, format, args);
 		return new AccessWidenerFormatException(lineNumber, message);
-	}
-
-	private void validateClassName(String className) {
-		// Common mistake is using periods to separate packages/class names
-		if (className.contains(".")) {
-			throw error("Class-names must be specified as a/b/C, not a.b.C, but found: %s", className);
-		}
 	}
 
 	public static class Header {
