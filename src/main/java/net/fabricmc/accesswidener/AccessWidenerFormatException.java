@@ -22,6 +22,11 @@ package net.fabricmc.accesswidener;
 public class AccessWidenerFormatException extends RuntimeException {
 	private final int lineNumber;
 
+	public AccessWidenerFormatException(int lineNumber, Throwable cause) {
+		super(cause);
+		this.lineNumber = lineNumber;
+	}
+
 	public AccessWidenerFormatException(int lineNumber, String message) {
 		super(message);
 		this.lineNumber = lineNumber;

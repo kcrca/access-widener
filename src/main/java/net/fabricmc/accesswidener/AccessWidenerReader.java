@@ -277,6 +277,10 @@ public final class AccessWidenerReader {
 		}
 	}
 
+	private AccessWidenerFormatException error(Throwable t) {
+		return new AccessWidenerFormatException(lineNumber, t);
+	}
+
 	private AccessWidenerFormatException error(String format, Object... args) {
 		// Note that getLineNumber is actually 1 line after the current line position,
 		// because it is 0-based. But since our reporting here is 1-based, it works out.
