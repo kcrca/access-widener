@@ -80,7 +80,7 @@ public class JvmTranslator {
 	 */
 	public String toDescriptor(String type) throws JvmTranslatorException {
 		StringBuilder sb = new StringBuilder();
-		append(sb, stripGenerics(type));
+		append(sb, stripIrrelevant(type));
 		return sb.toString();
 	}
 
@@ -90,7 +90,7 @@ public class JvmTranslator {
 	 * @return A list with the first element being the field name and the second the JVM descriptor.
 	 */
 	public List<String> toFieldDescriptor(String decl) throws JvmTranslatorException {
-		decl = stripGenerics(decl);
+		decl = stripIrrelevant(decl);
 		StringBuilder desc = new StringBuilder();
 		String name = append(desc, decl);
 		List<String> retval = new ArrayList<>();
@@ -107,7 +107,7 @@ public class JvmTranslator {
 	public List<String> toMethodDescriptor(String decl) throws JvmTranslatorException {
 		List<String> returnList = new ArrayList<>(2);
 
-		String sig = stripGenerics(decl);
+		String sig = stripIrrelevant(decl);
 		Matcher m = METHOD_SPLIT.matcher(sig);
 		if (!m.matches()) {
 			throw new JvmTranslatorException("Invalid method descriptor: %s", sig);
@@ -131,9 +131,10 @@ public class JvmTranslator {
 		return returnList;
 	}
 
-	private String stripGenerics(String s) throws JvmTranslatorException {
-		if (s.indexOf('<') < 0) {
-			return s;
+	private String stripIrrelevant(String s) throws JvmTranslatorException {
+		s = s.strip();
+		if (s.charAt(s.length() - 1) == ';') {
+			s = s.substring(0, s.length() - 1);
 		}
 		StringBuilder stripped = new StringBuilder(s.length());
 		int nesting = 0;

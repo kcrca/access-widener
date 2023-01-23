@@ -72,6 +72,11 @@ class JvmTranslatorTest {
 		String result = new JvmTranslator().toDescriptor("Class" + generic);
 		assertThat(result).isEqualTo("Ljava/lang/Class;");
 	}
+	@Test
+	void trailingSemicolonIgnoredForField() throws JvmTranslatorException {
+		List<String> result = new JvmTranslator().toFieldDescriptor("boolean foo;");
+		assertThat(result).hasSameElementsAs(List.of("foo", "Z"));
+	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"boolean", "char", "byte", "short", "int", "long", "float", "double"})
@@ -95,7 +100,7 @@ class JvmTranslatorTest {
 
 
 	@Test
-	void trailingSemicolonIgnored() throws JvmTranslatorException {
+	void trailingSemicolonIgnoredOnMethod() throws JvmTranslatorException {
 		List<String> result = new JvmTranslator().toMethodDescriptor("boolean foo();");
 		assertThat(result).hasSameElementsAs(List.of("foo", "()Z"));
 	}

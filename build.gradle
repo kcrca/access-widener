@@ -29,7 +29,7 @@ tasks.withType(JavaCompile).configureEach {
 
 // Main source set builds against java 8
 tasks.getByName(project.sourceSets.main.compileJavaTaskName) {
-	options.release = 8
+	options.release = 11
 	sourceCompatibility = 1.8
 	targetCompatibility = 1.8
 }
